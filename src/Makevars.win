@@ -1,0 +1,20 @@
+VERSION = 2.6.2
+RWINLIB = ../windows/harfbuzz-$(VERSION)
+
+CXX_STD = CXX11
+
+PKG_CPPFLAGS = \
+	-I${RWINLIB}/include/harfbuzz \
+	-I${RWINLIB}/include/fribidi \
+	-I${RWINLIB}/include/freetype2
+
+PKG_LIBS = -L${RWINLIB}/lib${R_ARCH} \
+	-lharfbuzz -lfreetype -lfribidi -lpng -lz
+
+all: clean winlibs
+
+winlibs:
+	"${R_HOME}/bin${R_ARCH_BIN}/Rscript.exe" "../tools/winlibs.R" ${VERSION}
+
+clean:
+	rm -f $(OBJECTS) $(SHLIB)
