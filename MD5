@@ -1,12 +1,12 @@
-337bd907a2fa7445b6f4471a2e602b64 *DESCRIPTION
+703d369de3bcdbc3b6f7643cf161c8a3 *DESCRIPTION
 38658af2499f1780bb9f1586ab95a939 *LICENSE
-8354ad37228c3aef81290c0b5e14b257 *NAMESPACE
-06c85a0fe8d8c4a3c7cd410216962798 *NEWS.md
+fc0493ada33f1e1178890b4f0469e120 *NAMESPACE
+c255400df5a48eb4a899f2f336f8bf4a *NEWS.md
 e86af100231da6f883d358efa66ad317 *R/cpp11.R
 69bc51cc86c2aaf6b57c6cf9afa01c42 *R/font_features.R
 54a913c6e5527bb9171c88fae0e9cc48 *R/shape_text.R
-10596b9f7e60f55c7cb25f4471f5d434 *R/textshaping-package.R
-a96773e1259512b322ca14e8d6bf470d *README.md
+377383f1194400cd367aa2179278e110 *R/textshaping-package.R
+113895aab2d88bb439e8264de84eca6b *README.md
 2ecade7643ba85fbc4b6d4256a9d3bd8 *build/vignette.rds
 8fedab5931036be90e6ff98113518359 *cleanup
 2352774c4b9d92c79ebaaae8b858f426 *configure
@@ -17,7 +17,7 @@ a96773e1259512b322ca14e8d6bf470d *README.md
 32191f2be718133207d2707b8b56ef34 *man/get_font_features.Rd
 d9a51991adaa7bc71e66ea5c712ca82d *man/shape_text.Rd
 fbaafed215a98649dc6d1bbcf0048dfd *man/text_width.Rd
-657d995b3009ce41b82e4a9ca5a0ce59 *man/textshaping-package.Rd
+7f4c4c10c352c598ba30c5af1e8f7605 *man/textshaping-package.Rd
 cd12dc7d3e35eb57cf01a01939f4119c *src/Makevars.in
 ac0a826f39f0ef32f50b268421c5c8e5 *src/Makevars.win
 48efff0cee3d1c6f89a3b5ff3354f715 *src/cache_lru.h
@@ -29,7 +29,7 @@ b828ba4493df04539e8c025afe9a399b *src/face_feature.h
 39054766e1da4fbe98f064a018a81958 *src/init.cpp
 ba669768f033d3d09385cc8073802870 *src/string_bidi.cpp
 2371cb7c1a0b7bc9884898a141c30416 *src/string_bidi.h
-ee2c266e10f6c7c237960e8e990a62ca *src/string_metrics.cpp
+5af043e79db71d0ea1db7e0e97974bdd *src/string_metrics.cpp
 fa114262ee0264c5481e93ff1e849d65 *src/string_metrics.h
 7234316a25fa6ecdc37b6857387105a8 *src/string_shape.cpp
 11c3e2e2d54f2735376746fcade9b733 *src/string_shape.h
