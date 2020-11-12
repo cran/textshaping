@@ -13,6 +13,74 @@
 
 using namespace cpp11;
 
+#ifdef NO_HARFBUZZ_FRIBIDI
+
+list get_string_shape_c(strings string, integers id, strings path, integers index,
+                        doubles size, doubles res, doubles lineheight, integers align,
+                        doubles hjust, doubles vjust, doubles width, doubles tracking,
+                        doubles indent, doubles hanging, doubles space_before,
+                        doubles space_after) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  writable::data_frame string_df({
+    "string"_nm = writable::logicals(),
+    "width"_nm = writable::logicals(),
+    "height"_nm = writable::logicals(),
+    "left_bearing"_nm = writable::logicals(),
+    "right_bearing"_nm = writable::logicals(),
+    "top_bearing"_nm = writable::logicals(),
+    "bottom_bearing"_nm = writable::logicals(),
+    "left_border"_nm = writable::logicals(),
+    "top_border"_nm = writable::logicals(),
+    "pen_x"_nm = writable::logicals(),
+    "pen_y"_nm = writable::logicals()
+  });
+  string_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
+
+  writable::data_frame info_df({
+    "glyph"_nm = writable::logicals(),
+    "index"_nm = writable::logicals(),
+    "metric_id"_nm = writable::logicals(),
+    "string_id"_nm = writable::logicals(),
+    "x_offset"_nm = writable::logicals(),
+    "y_offset"_nm = writable::logicals(),
+    "x_midpoint"_nm = writable::logicals()
+  });
+  info_df.attr("class") = writable::strings({"tbl_df", "tbl", "data.frame"});
+
+  return writable::list({
+    "shape"_nm = info_df,
+    "metrics"_nm = string_df
+  });
+}
+
+doubles get_line_width_c(strings string, strings path, integers index, doubles size,
+                         doubles res, logicals include_bearing) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  return {};
+}
+
+int ts_string_width(const char* string, FontSettings font_info, double size,
+                    double res, int include_bearing, double* width) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  *width = 0.0;
+  return 0;
+}
+
+int ts_string_shape(const char* string, FontSettings font_info, double size,
+                    double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
+                    std::vector<int>& cluster, std::vector<unsigned int>& font,
+                    std::vector<FontSettings>& fallbacks) {
+  Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
+  loc.clear();
+  id.clear();
+  cluster.clear();
+  font.clear();
+  fallbacks.clear();
+  return 0;
+}
+
+#else
+
 list get_string_shape_c(strings string, integers id, strings path, integers index,
                         doubles size, doubles res, doubles lineheight, integers align,
                         doubles hjust, doubles vjust, doubles width, doubles tracking,
@@ -211,8 +279,9 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
 }
 
 int ts_string_shape(const char* string, FontSettings font_info, double size,
-                    double res, double* x, double* y, int* id, int* n_glyphs,
-                    unsigned int max_length) {
+                    double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
+                    std::vector<int>& cluster, std::vector<unsigned int>& font,
+                    std::vector<FontSettings>& fallbacks) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
   bool success = shaper.single_line_shape(
@@ -221,18 +290,49 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   if (!success) {
     return shaper.error_code;
   }
-  *n_glyphs = int(max_length < shaper.last_shape_info.x_pos.size() ? max_length : shaper.last_shape_info.x_pos.size());
-  for (int i = 0; i < *n_glyphs; ++i) {
-    x[i] = double(shaper.last_shape_info.x_pos[i]) / 64.0;
-    y[i] = 0.0;
-    id[i] = shaper.last_shape_info.glyph_id[i];
+  int n_glyphs = shaper.last_shape_info.x_pos.size();
+  loc.clear();
+  id.clear();
+  for (int i = 0; i < n_glyphs; ++i) {
+    loc.emplace_back(
+      double(shaper.last_shape_info.x_pos[i]) / 64.0,
+      0.0
+    );
+    id.push_back(shaper.last_shape_info.glyph_id[i]);
   }
 
   END_CPP11_NO_RETURN
   return 0;
 }
+int ts_string_shape_old(const char* string, FontSettings font_info, double size,
+                        double res, double* x, double* y, int* id, int* n_glyphs,
+                        unsigned int max_length) {
+  int result = 0;
+  BEGIN_CPP11
+  std::vector<Point> _loc;
+  std::vector<uint32_t> _id;
+  std::vector<int> _cluster;
+  std::vector<unsigned int> _font;
+  std::vector<FontSettings> _fallbacks;
+  result = ts_string_shape(string, font_info, size, res, _loc, _id, _cluster, _font, _fallbacks);
+
+  if (result == 0) {
+    *n_glyphs = max_length > _loc.size() ? _loc.size() : max_length;
+    for (int i = 0; i < *n_glyphs; ++i) {
+      x[i] = _loc[i].x;
+      y[i] = _loc[i].y;
+      id[i] = (int) _id[i];
+    }
+  }
+
+  END_CPP11_NO_RETURN
+  return result;
+}
+
+#endif
 
 void export_string_metrics(DllInfo* dll) {
   R_RegisterCCallable("textshaping", "ts_string_width", (DL_FUNC)ts_string_width);
-  R_RegisterCCallable("textshaping", "ts_string_shape", (DL_FUNC)ts_string_shape);
+  R_RegisterCCallable("textshaping", "ts_string_shape_new", (DL_FUNC)ts_string_shape);
+  R_RegisterCCallable("textshaping", "ts_string_shape", (DL_FUNC)ts_string_shape_old);
 }
