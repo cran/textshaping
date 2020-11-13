@@ -1,3 +1,5 @@
+# textshaping 0.2.1
+
 # textshaping 0.2.0
 
 * Update C API to prepare for font fallback

@@ -1,7 +1,7 @@
 Package: textshaping
 Title: Bindings to the 'HarfBuzz' and 'Fribidi' Libraries for Text
         Shaping
-Version: 0.2.0
+Version: 0.2.1
 Authors@R: c(
     person("Thomas Lin", "Pedersen", , "thomas.pedersen@rstudio.com", c("cre", "aut"), comment = c(ORCID = "0000-0002-5147-4711")),
     person("RStudio", role = "cph")
@@ -23,10 +23,10 @@ BugReports: https://github.com/r-lib/textshaping/issues
 Suggests: covr, knitr, rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: yes
-Packaged: 2020-11-12 11:30:56 UTC; thomas
+Packaged: 2020-11-12 15:22:08 UTC; thomas
 Author: Thomas Lin Pedersen [cre, aut]
     (<https://orcid.org/0000-0002-5147-4711>),
   RStudio [cph]
 Maintainer: Thomas Lin Pedersen <thomas.pedersen@rstudio.com>
 Repository: CRAN
-Date/Publication: 2020-11-12 11:50:02 UTC
+Date/Publication: 2020-11-13 06:30:02 UTC

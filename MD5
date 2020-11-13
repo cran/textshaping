@@ -1,7 +1,7 @@
-6d76e9394d1788c739ae073091265a8f *DESCRIPTION
+260713528d891fd81a7fba59823e1098 *DESCRIPTION
 38658af2499f1780bb9f1586ab95a939 *LICENSE
 fc0493ada33f1e1178890b4f0469e120 *NAMESPACE
-37e416dce439ead11117d1063cd0842e *NEWS.md
+11e967a37701df4888c51589f5c6d3e7 *NEWS.md
 e86af100231da6f883d358efa66ad317 *R/cpp11.R
 69bc51cc86c2aaf6b57c6cf9afa01c42 *R/font_features.R
 8c8af0d9bcf06c7d4d419562b0f36984 *R/shape_text.R
@@ -29,7 +29,7 @@ b828ba4493df04539e8c025afe9a399b *src/face_feature.h
 39054766e1da4fbe98f064a018a81958 *src/init.cpp
 13e1783c7b9198be0d421f2a6fd30f39 *src/string_bidi.cpp
 96cab9d24d19732554287f96e75fd14a *src/string_bidi.h
-fc9b7b49c32a3207cedeee02b891eb76 *src/string_metrics.cpp
+c1a761b7defd1ef04c5d15512179192e *src/string_metrics.cpp
 b5969104dd9f3f686160714661f3e1a6 *src/string_metrics.h
 c9b84ea23077f93807ac4ae895a2baa4 *src/string_shape.cpp
 3de367997e8658588797b17833589f72 *src/string_shape.h
