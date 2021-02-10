@@ -69,7 +69,8 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
 int ts_string_shape(const char* string, FontSettings font_info, double size,
                     double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
-                    std::vector<FontSettings>& fallbacks) {
+                    std::vector<FontSettings>& fallbacks,
+                    std::vector<double>& fallback_scaling) {
   Rprintf("textshaping has been compiled without HarfBuzz and/or Fribidi. Please install system dependencies and recompile\n");
   loc.clear();
   id.clear();
@@ -289,7 +290,8 @@ int ts_string_width(const char* string, FontSettings font_info, double size,
 int ts_string_shape(const char* string, FontSettings font_info, double size,
                     double res, std::vector<Point>& loc, std::vector<uint32_t>& id,
                     std::vector<int>& cluster, std::vector<unsigned int>& font,
-                    std::vector<FontSettings>& fallbacks) {
+                    std::vector<FontSettings>& fallbacks,
+                    std::vector<double>& fallback_scaling) {
   BEGIN_CPP11
   HarfBuzzShaper& shaper = get_hb_shaper();
   bool success = shaper.single_line_shape(
@@ -300,14 +302,16 @@ int ts_string_shape(const char* string, FontSettings font_info, double size,
   }
   int n_glyphs = shaper.last_shape_info.x_pos.size();
   loc.clear();
-  id.clear();
   for (int i = 0; i < n_glyphs; ++i) {
     loc.emplace_back(
       double(shaper.last_shape_info.x_pos[i]) / 64.0,
       0.0
     );
-    id.push_back(shaper.last_shape_info.glyph_id[i]);
   }
+  id.assign(shaper.last_shape_info.glyph_id.begin(), shaper.last_shape_info.glyph_id.end());
+  font.assign(shaper.last_shape_info.font.begin(), shaper.last_shape_info.font.end());
+  fallbacks.assign(shaper.last_shape_info.fallbacks.begin(), shaper.last_shape_info.fallbacks.end());
+  fallback_scaling.assign(shaper.last_shape_info.fallback_scaling.begin(), shaper.last_shape_info.fallback_scaling.end());
 
   END_CPP11_NO_RETURN
   return 0;
@@ -322,7 +326,8 @@ int ts_string_shape_old(const char* string, FontSettings font_info, double size,
   std::vector<int> _cluster;
   std::vector<unsigned int> _font;
   std::vector<FontSettings> _fallbacks;
-  result = ts_string_shape(string, font_info, size, res, _loc, _id, _cluster, _font, _fallbacks);
+  std::vector<double> _fallback_scaling;
+  result = ts_string_shape(string, font_info, size, res, _loc, _id, _cluster, _font, _fallbacks, _fallback_scaling);
 
   if (result == 0) {
     *n_glyphs = max_length > _loc.size() ? _loc.size() : max_length;
