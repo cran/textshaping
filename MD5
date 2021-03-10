@@ -1,7 +1,7 @@
-892c4695ad069eee579b01dd3807989f *DESCRIPTION
+8647e64e58dbb63b3f28ee01a81dd514 *DESCRIPTION
 38658af2499f1780bb9f1586ab95a939 *LICENSE
 fc0493ada33f1e1178890b4f0469e120 *NAMESPACE
-06e888e3c87f24fb911b0fe010099ac2 *NEWS.md
+5fa9664318574a635f60a601967598de *NEWS.md
 3cdfcedc32dc8d2928eff42ab0a3b6bf *R/aaa.R
 4cce499f2c314a68991f0cddfd5c7d18 *R/cpp11.R
 69bc51cc86c2aaf6b57c6cf9afa01c42 *R/font_features.R
@@ -13,7 +13,7 @@ fc0493ada33f1e1178890b4f0469e120 *NAMESPACE
 599baf2cfafb5aec8453bb28e90d4c48 *configure
 3c9e2d06e8560272e30c98b0c827478b *inst/doc/c_interface.R
 53f397f83d34bac25a463944ebed33cd *inst/doc/c_interface.Rmd
-eb1b5ac8af3e7bfb812ea4eb086ba2be *inst/doc/c_interface.html
+215a6ab1dcf6b8cf3043d08bc8f4d83d *inst/doc/c_interface.html
 9f9129f52a3436d678b4d45200f03463 *inst/include/textshaping.h
 cb1e46f469cfbbbde29c8b5113e1d789 *man/figures/lifecycle-archived.svg
 c0d2e5a54f1fa4ff02bf9533079dd1f7 *man/figures/lifecycle-defunct.svg
@@ -40,7 +40,7 @@ b828ba4493df04539e8c025afe9a399b *src/face_feature.h
 96cab9d24d19732554287f96e75fd14a *src/string_bidi.h
 a31d75f04738577efcf2a95129cfebfb *src/string_metrics.cpp
 edde65d99d22865697f958cf2e1cb0f4 *src/string_metrics.h
-71a53c2b7d876798464e67a9e31a189d *src/string_shape.cpp
+d37f586ccd6f2546fe5c132a11d8d361 *src/string_shape.cpp
 dd7664858e6e86f07af92ad11ea425fc *src/string_shape.h
 fd0a6038fd629efd773c07845b366816 *src/utils.h
 e57df1d506e2920303862076a0f9ecad *tools/winlibs.R
