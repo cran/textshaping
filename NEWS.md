@@ -1,3 +1,7 @@
+# textshaping 0.3.3
+
+* Support static linking on macOS (#17, @jeroen)
+
 # textshaping 0.3.2
 
 * Avoid overindexing fallbacks when no fallback is found
