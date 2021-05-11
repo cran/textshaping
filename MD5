@@ -1,7 +1,7 @@
-516decd6a1c57374fd5bbd85e9315a48 *DESCRIPTION
+a12a18e43016eba59c2acc943c09936c *DESCRIPTION
 38658af2499f1780bb9f1586ab95a939 *LICENSE
 fc0493ada33f1e1178890b4f0469e120 *NAMESPACE
-ed99b48b1a4ad21fff27e5aae9542c40 *NEWS.md
+60217d14f5a969c989596e322dbc89e6 *NEWS.md
 3cdfcedc32dc8d2928eff42ab0a3b6bf *R/aaa.R
 4cce499f2c314a68991f0cddfd5c7d18 *R/cpp11.R
 69bc51cc86c2aaf6b57c6cf9afa01c42 *R/font_features.R
@@ -28,7 +28,8 @@ c3978703d8f40f2679795335715e98f4 *man/figures/lifecycle-experimental.svg
 fbaafed215a98649dc6d1bbcf0048dfd *man/text_width.Rd
 7f4c4c10c352c598ba30c5af1e8f7605 *man/textshaping-package.Rd
 cd12dc7d3e35eb57cf01a01939f4119c *src/Makevars.in
-be6f2fea0b93ec23512ae0f6bb830705 *src/Makevars.win
+2cec33791efd347cbcb051402d7cf9c4 *src/Makevars.ucrt
+98494e704f2fd685a67d94ff56ae8fd9 *src/Makevars.win
 48efff0cee3d1c6f89a3b5ff3354f715 *src/cache_lru.h
 b1c07e48af719780124ccb82760dfa36 *src/cpp11.cpp
 68b12f4d8a19a6ad89b124147fd4a866 *src/face_feature.cpp
@@ -42,6 +43,6 @@ a31d75f04738577efcf2a95129cfebfb *src/string_metrics.cpp
 edde65d99d22865697f958cf2e1cb0f4 *src/string_metrics.h
 d37f586ccd6f2546fe5c132a11d8d361 *src/string_shape.cpp
 dd7664858e6e86f07af92ad11ea425fc *src/string_shape.h
-fd0a6038fd629efd773c07845b366816 *src/utils.h
+a97ba99eaca7f130d80de3dc3743cd7d *src/utils.h
 e57df1d506e2920303862076a0f9ecad *tools/winlibs.R
 53f397f83d34bac25a463944ebed33cd *vignettes/c_interface.Rmd
