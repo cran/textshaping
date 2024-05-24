@@ -1,3 +1,8 @@
+# textshaping 0.4.0
+
+* Full rewrite of `shape_text()` to allow proper font-fallback, bidi text
+  support, support for font-features, spacers, new align settings, etc.
+
 # textshaping 0.3.7
 
 * Prepare for Arm Windows
