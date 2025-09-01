@@ -1,3 +1,11 @@
+# textshaping 1.0.2
+
+* Fixed a bug in bidi embedding arrangement when shaping a single line
+  (ggplot2#6497)
+* Fixed a bug in shape caching due to a weak vector hash implementation
+  (ragg#193)
+* Fixed a bug in line positioning when line containes mix of different sizes
+
 # textshaping 1.0.1
 
 * Fixed a bug where hard line breaks where ignored if the line consisted of
@@ -24,7 +32,7 @@
 # textshaping 0.4.1
 
 * Make compiled code somewhat less assumptive about the correctness of the input
-* Fix a bug from too agressive early exiting shaping of strings with no max
+* Fix a bug from too aggressive early exiting shaping of strings with no max
   width (#45)
 * Fixed a mismatch between the default values of the `width` argument in
   `shape_text()` and `systemfonts::match_fonts()` (#44)

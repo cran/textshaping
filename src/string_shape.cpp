@@ -68,7 +68,7 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings& font_info,
 
   unsigned int index = shape_infos.size();
 
-  // Add precalculated soft and hard breeak points to the sets
+  // Add precalculated soft and hard break points to the sets
   for (auto iter = soft_wrap.begin(); iter != soft_wrap.end(); ++iter) {
     soft_break.insert(run_start + (*iter) - 1);
   }
@@ -262,6 +262,7 @@ bool HarfBuzzShaper::finish_string() {
     if (!final_embeddings.empty() || hard_break) {
       cur_line_indent = hard_break ? indent : hanging;
       pen_x = 0;
+      line_ascend = 0;
       if (hard_break) pen_y -= space_after + space_before;
     }
   }
@@ -414,7 +415,7 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
 
   // Reverse ordering of consecutive embeddings in rtl
   // This is needed to keep their internal order during shaping
-  // Further collapses all consequtive runs into one embedding to simplify the final shapping operation
+  // Further collapses all consequtive runs into one embedding to simplify the final shaping operation
   auto run_start = all_embeddings.begin();
   int run_embed_level = run_start->embedding_level;
   std::list<EmbedInfo> final_embeddings;
@@ -588,9 +589,9 @@ EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings& fo
 
   rearrange_embeddings(final_embeddings);
 
-  // Combined all embeddings into one
+  // Combine all embeddings into one
   for (auto iter = std::next(final_embeddings.begin()); iter != final_embeddings.end(); ++iter) {
-    final_embeddings.front().add(*iter);
+    final_embeddings.front().add(*iter, false);
   }
   return final_embeddings.front();
 }

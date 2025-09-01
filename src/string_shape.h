@@ -79,11 +79,11 @@ struct EmbedInfo {
   size_t embedding_level;
   int32_t full_width;
   bool terminates_paragraph;
-  void add(const EmbedInfo& other) {
-    if (embedding_level != other.embedding_level) {
+  void add(const EmbedInfo& other, bool check = true) {
+    if (check && embedding_level != other.embedding_level) {
       cpp11::stop("Unable to merge embeddings of different levels");
     }
-    if (terminates_paragraph) {
+    if (check && terminates_paragraph) {
       cpp11::stop("Can't combine embeddings past termination point");
     }
     glyph_id.insert(glyph_id.end(), other.glyph_id.begin(), other.glyph_id.end());
@@ -235,10 +235,13 @@ struct ShapeInfo {
 template<typename Iterator>
 inline size_t vector_hash(Iterator begin, Iterator end) {
   typedef typename std::iterator_traits<Iterator>::value_type Type;
-  const std::hash<Type> hasher;
-  size_t answer = 0;
+  size_t answer = end - begin;
   for (auto iter = begin; iter != end; ++iter) {
-    answer ^= hasher(*iter) + 0x9e3779b9 + (answer << 6) + (answer >> 2);
+    Type x = *iter;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = (x >> 16) ^ x;
+    answer ^= x + 0x9e3779b9 + (answer << 6) + (answer >> 2);
   }
   return answer;
 }
@@ -441,7 +444,7 @@ private:
     case 10: return true;    // Line feed
     case 11: return true;    // Vertical tab
     case 12: return true;    // Form feed
-    case 13: return true;    // Cariage return
+    case 13: return true;    // Carriage return
     case 133: return true;   // Next line
     case 8232: return true;  // Line Separator
     case 8233: return true;  // Paragraph Separator
@@ -483,7 +486,7 @@ private:
     case 10: return true;    // Line feed
     case 11: return true;    // Vertical tab
     case 12: return true;    // Form feed
-    case 13: return true;    // Cariage return
+    case 13: return true;    // Carriage return
     case 32: return true;    // Space
     case 133: return true;   // Next line
     case 5760: return true;  // Ogham Space Mark

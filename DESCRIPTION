@@ -1,7 +1,7 @@
 Package: textshaping
 Title: Bindings to the 'HarfBuzz' and 'Fribidi' Libraries for Text
         Shaping
-Version: 1.0.1
+Version: 1.0.2
 Authors@R: c(
     person("Thomas Lin", "Pedersen", , "thomas.pedersen@posit.co", role = c("cre", "aut"),
            comment = c(ORCID = "0000-0002-5147-4711")),
@@ -28,10 +28,10 @@ Encoding: UTF-8
 RoxygenNote: 7.3.2
 SystemRequirements: freetype2, harfbuzz, fribidi
 NeedsCompilation: yes
-Packaged: 2025-05-01 07:04:17 UTC; thomas
+Packaged: 2025-09-01 11:16:10 UTC; thomas
 Author: Thomas Lin Pedersen [cre, aut] (ORCID:
     <https://orcid.org/0000-0002-5147-4711>),
   Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)
 Maintainer: Thomas Lin Pedersen <thomas.pedersen@posit.co>
 Repository: CRAN
-Date/Publication: 2025-05-01 07:30:02 UTC
+Date/Publication: 2025-09-01 11:40:02 UTC
