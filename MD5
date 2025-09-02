@@ -1,7 +1,7 @@
-b7dd1eff2d218315bcc2b4b7bb696f7d *DESCRIPTION
+b4a981324b4d6674d788a289443cb9fc *DESCRIPTION
 0e91e607e107aa84ac57ec6d39ec2216 *LICENSE
 013be8d63ca34a15b45aa279cafdd6a3 *NAMESPACE
-40e204b956acbaf2bdce7f307cc18afe *NEWS.md
+5f770e38ea84065a0b9cd7d9f5c28674 *NEWS.md
 3cdfcedc32dc8d2928eff42ab0a3b6bf *R/aaa.R
 969434a804afc62450115fa96598e125 *R/cpp11.R
 b6f26d26753585856a3f272c6ffe0b70 *R/font_features.R
@@ -57,7 +57,7 @@ e162d923eab0302229b170f99266a5f6 *src/string_bidi.h
 41044fde5c0da1fdb7f98a39d528f77e *src/string_metrics.cpp
 139ddaa1a7b38731ea2f322eb7ca3270 *src/string_metrics.h
 efa92b0177fd50bad6fee263a83feec1 *src/string_shape.cpp
-2ff7e963875a58d0882dd128ddf613f2 *src/string_shape.h
+d4f327d8ca22bae26de74b2c5f3e92b0 *src/string_shape.h
 92bdd0993fe0604991aeb22ed2f7bd1b *src/utils.h
 388e9e9944b104092093b05f8276aed9 *tests/testthat.R
 f9eef1f1fec6de82cf9ed9d55b726782 *tests/testthat/test-bidi.R
