@@ -1,3 +1,8 @@
+# textshaping 1.0.4
+
+* Guard against issues related to incompatible versions of freetype in
+  systemfonts and textshaping (#68).
+
 # textshaping 1.0.3
 
 * Fixed a signed integer overflow in the the fix for ragg#193
