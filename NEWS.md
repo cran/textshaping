@@ -1,3 +1,7 @@
+# textshaping 1.0.5
+
+* Fixed a bug when reverting back from one fallback to the previous one (#76)
+
 # textshaping 1.0.4
 
 * Guard against issues related to incompatible versions of freetype in
@@ -5,7 +9,7 @@
 
 # textshaping 1.0.3
 
-* Fixed a signed integer overflow in the the fix for ragg#193
+* Fixed a signed integer overflow in the fix for ragg#193
 
 # textshaping 1.0.2
 

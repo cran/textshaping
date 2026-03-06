@@ -336,9 +336,6 @@ public:
   space_before(0),
   space_after(0)
   {
-    if (!ft_compat) {
-      Rprintf("systemfonts and textshaping have been compiled with different versions of Freetype. Because of this, textshaping will not use the font cache provided by systemfonts");
-    }
     buffer = hb_buffer_create();
   };
   ~HarfBuzzShaper() {
@@ -424,13 +421,13 @@ private:
                        int dir, ShapeInfo& shape_info, std::vector<FontSettings>& fallbacks,
                        std::vector<double>& fallback_sizes, std::vector<double>& fallback_scales);
   hb_font_t* load_fallback(unsigned int font, unsigned int start, unsigned int end,
-                           int& error, bool& new_added, ShapeInfo& shape_info,
+                           bool& new_added, ShapeInfo& shape_info,
                            std::vector<FontSettings>& fallbacks,
                            std::vector<double>& fallback_sizes,
                            std::vector<double>& fallback_scales);
   bool fallback_cluster(unsigned int font, std::vector<unsigned int>& char_font,
                         unsigned int from, unsigned int& start, unsigned int& end);
-  void annotate_fallbacks(unsigned int font, unsigned int offset,
+  void annotate_fallbacks(unsigned int font, unsigned int buffer_end,
                           std::vector<unsigned int>& char_font,
                           hb_glyph_info_t* glyph_info, unsigned int n_glyphs,
                           bool& needs_fallback, bool& any_resolved, bool ltr,
@@ -441,7 +438,7 @@ private:
                        std::vector<double>& fallback_sizes,
                        std::vector<double>& fallback_scales);
   void fill_glyph_info(EmbedInfo& embedding);
-  FT_Face get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales);
+  FT_Face get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales, bool deref = false);
   void insert_hyphen(EmbedInfo& embedding, size_t where);
   bool has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force);
   void rearrange_embeddings(std::list<EmbedInfo>& line);

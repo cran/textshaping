@@ -1,6 +1,7 @@
 #ifndef NO_HARFBUZZ_FRIBIDI
 
 #include <climits>
+#include <cmath> // for std::abs
 #include <iterator>
 #include <list>
 #include <vector>
@@ -135,7 +136,6 @@ bool HarfBuzzShaper::add_string(const char* string, FontSettings& font_info,
   // Add run info to list
   shape_infos.emplace_back(run_start, run_end, font_info, index, size, cur_res, tracking);
 
-  //FT_Done_Face(face);
   return true;
 }
 
@@ -457,11 +457,11 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
   std::list<EmbedInfo> all_embeddings;
   unsigned int i = 0;
   for (auto iter = shapes.begin(); iter != shapes.end(); ++iter) {
-    if (iter->embeddings.size() == 0) { // avoid shaping spacers
+    if (iter->embeddings.empty()) { // avoid shaping spacers
       shape_text_run(*iter, ltr);
     } else {
       // We adopt the embedding level of the prior embedding for spacers
-      int level = all_embeddings.size() == 0 ? (ltr ? 0 : 1) : all_embeddings.back().embedding_level;
+      int level = all_embeddings.empty() ? (ltr ? 0 : 1) : all_embeddings.back().embedding_level;
       iter->embeddings[0].embedding_level = level;
     }
     iter->add_index(i++);
@@ -470,7 +470,7 @@ std::list<EmbedInfo> HarfBuzzShaper::combine_embeddings(std::vector<ShapeInfo>& 
   }
 
   // Shortcut for simplest case
-  if (all_embeddings.size() == 1) return all_embeddings;
+  if (all_embeddings.size() <= 1) return all_embeddings;
 
   // Reverse ordering of consecutive embeddings in rtl
   // This is needed to keep their internal order during shaping
@@ -535,7 +535,7 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
   std::vector<double> fallback_scaling;
 
   // Get scaling and sizing info for the default font
-  if (!get_font_sizing(fallback.back(), text_run.size, text_run.res, fallback_size, fallback_scaling)) {
+  if (!get_font_sizing(fallback.back(), text_run.size, text_run.res, fallback_size, fallback_scaling, true)) {
     return;
   }
 
@@ -590,7 +590,7 @@ void HarfBuzzShaper::shape_text_run(ShapeInfo &text_run, bool ltr) {
         if (!emoji_font_added) {
           // Add the system emoji font to fallbacks
           fallback.push_back(locate_font_with_features("emoji", 0, 0));
-          if (!get_font_sizing(fallback.back(), text_run.size, text_run.res, fallback_size, fallback_scaling)) {
+          if (!get_font_sizing(fallback.back(), text_run.size, text_run.res, fallback_size, fallback_scaling, true)) {
             return;
           }
           emoji_font_added = true;
@@ -644,10 +644,11 @@ EmbedInfo HarfBuzzShaper::shape_single_line(const char* string, FontSettings& fo
   full_string = {utc_string, utc_string + n_chars};
 
   std::vector<ShapeInfo> shapes = {ShapeInfo(0, full_string.size(), font_info, 0, size, res, 0)};
+  if (shapes.empty()) return EmbedInfo();
   int direction = 0;
   auto final_embeddings = combine_embeddings(shapes, direction);
 
-  if (final_embeddings.size() == 0) return EmbedInfo();
+  if (final_embeddings.empty()) return EmbedInfo();
 
   rearrange_embeddings(final_embeddings);
 
@@ -716,7 +717,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
   std::vector<unsigned int> char_font(embedding_size, current_font);
   bool needs_fallback = false;
   bool any_resolved = false;
-  annotate_fallbacks(current_font + 1, 0, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved, embed_is_ltr, start);
+  annotate_fallbacks(current_font + 1, embedding_size, char_font, glyph_info, n_glyphs, needs_fallback, any_resolved, embed_is_ltr, start);
 
   if (!needs_fallback) { // Short route - use existing shaping
     glyph_pos = hb_buffer_get_glyph_positions(buffer, &n_glyphs);
@@ -745,16 +746,14 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
       // This shouldn't happen but oh well. We give up on fallbacks and shape with what we got
       break;
     }
-    int error = 0;
     bool using_new = false;
-    font = load_fallback(current_font, start + fallback_start, start + fallback_end, error, using_new, shape_info, fallbacks, fallback_sizes, fallback_scales);
+    font = load_fallback(current_font, start + fallback_start, start + fallback_end, using_new, shape_info, fallbacks, fallback_sizes, fallback_scales);
     if (!using_new) {
       // We don't need to have success if we are trying an existing font
       any_resolved = true;
     }
-    if (error != 0) {
+    if (error_code != 0) {
       Rprintf("Failed to get face: %s, %i\n", fallbacks[current_font].file, fallbacks[current_font].index);
-      error_code = error;
       shape_info.embeddings.pop_back();
       return false;
     }
@@ -770,7 +769,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
       if (n_glyphs > 0) {
         bool needs_fallback_2 = false;
         bool any_resolved_2 = false;
-        annotate_fallbacks(current_font + 1, fallback_start, char_font, glyph_info, n_glyphs, needs_fallback_2, any_resolved_2, embed_is_ltr, start);
+        annotate_fallbacks(current_font + 1, fallback_end, char_font, glyph_info, n_glyphs, needs_fallback_2, any_resolved_2, embed_is_ltr, start);
         if (needs_fallback_2) needs_fallback = true;
         if (any_resolved_2) any_resolved = true;
       }
@@ -874,7 +873,7 @@ bool HarfBuzzShaper::shape_embedding(unsigned int start, unsigned int end,
 
 // Load a font from the fallback vector with the correct sizing etc
 hb_font_t*  HarfBuzzShaper::load_fallback(unsigned int font, unsigned int start,
-                                          unsigned int end, int& error, bool& new_added,
+                                          unsigned int end, bool& new_added,
                                           ShapeInfo& shape_info,
                                           std::vector<FontSettings>& fallbacks,
                                           std::vector<double>& fallback_sizes,
@@ -893,6 +892,9 @@ hb_font_t*  HarfBuzzShaper::load_fallback(unsigned int font, unsigned int start,
   }
   FT_Face face = get_font_sizing(fallbacks[font], shape_info.size, shape_info.res, fallback_sizes, fallback_scales);
 
+  if (!face) {
+    return nullptr;
+  }
   hb_font_t* hbfont = hb_ft_font_create_referenced(face);
   FT_Done_Face(face);
   return hbfont;
@@ -918,7 +920,7 @@ bool HarfBuzzShaper::fallback_cluster(unsigned int font, std::vector<unsigned in
 }
 
 // Find areas in the string that aren't covered by current font
-void HarfBuzzShaper::annotate_fallbacks(unsigned int font, unsigned int offset,
+void HarfBuzzShaper::annotate_fallbacks(unsigned int font, unsigned int buffer_end,
                                         std::vector<unsigned int>& char_font,
                                         hb_glyph_info_t* glyph_info,
                                         unsigned int n_glyphs,
@@ -931,9 +933,9 @@ void HarfBuzzShaper::annotate_fallbacks(unsigned int font, unsigned int offset,
     if (i == n_glyphs || glyph_info[i].cluster != current_cluster) {
       unsigned int next_cluster;
       if (ltr) {
-        next_cluster = i < n_glyphs ? glyph_info[i].cluster : char_font.size() + string_offset;
+        next_cluster = i < n_glyphs ? glyph_info[i].cluster : buffer_end + string_offset;
       } else {
-        next_cluster = cluster_start > 0 ? glyph_info[cluster_start - 1].cluster : char_font.size() + string_offset;
+        next_cluster = cluster_start > 0 ? glyph_info[cluster_start - 1].cluster : buffer_end + string_offset;
       }
       bool has_glyph = true;
       for (unsigned int j = cluster_start; j < i; ++j) {
@@ -1040,7 +1042,7 @@ void HarfBuzzShaper::fill_glyph_info(EmbedInfo& embedding) {
   }
 }
 
-inline FT_Face HarfBuzzShaper::get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales) {
+inline FT_Face HarfBuzzShaper::get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales, bool deref) {
   int error = 0;
   FT_Face face = get_cached_or_new_face(font_info.file, font_info.index, size, res, &error);
   if (error != 0) {
@@ -1052,6 +1054,7 @@ inline FT_Face HarfBuzzShaper::get_font_sizing(FontSettings& font_info, double s
   double fscaling = family_scaling(face->family_name);
   scales.push_back(scaling * fscaling);
   sizes.push_back(size * fscaling);
+  if (deref) FT_Done_Face(face);
   return face;
 }
 
