@@ -22,52 +22,65 @@
 static const uint32_t EMPTY_CHAR = 0xffffffff; // Largest possible value. Unlikely any font would use that
 static const uint32_t SPACER_CHAR = 0xffffffff - 1; // Second largest possible value. Also unlikely any font would use that
 
-static const bool ft_compat = systemfonts::ver2::check_ft_version();
-
 struct FT_Library_Safe {
   FT_Library library;
-  FT_Library_Safe() {
-    if (!ft_compat) FT_Init_FreeType(&library);
+  // Snapshot the compat check together with the library so the flag and the
+  // library state can never disagree if systemfonts is reloaded mid-session
+  const bool compat;
+  FT_Library_Safe() : library(nullptr), compat(systemfonts::ver2::check_ft_version()) {
+    if (!compat) FT_Init_FreeType(&library);
   }
   ~FT_Library_Safe() {
-    if (!ft_compat) FT_Done_FreeType(library);
+    if (!compat && library != nullptr) FT_Done_FreeType(library);
   }
 };
 
 static const FT_Library_Safe ft;
+static const bool& ft_compat = ft.compat;
 struct ShapeID {
   size_t string_hash;
   size_t embed_hash;
   std::string font;
   unsigned int index;
   double size;
+  double font_size;
   double tracking;
+  // Resolved text direction (0/1/2 horizontal, 3 = ttb, 4 = ttb-ltr) and
+  // mixed-script mode (0 = rotate, 1 = upright; only relevant when vertical)
+  int direction;
+  int mixed;
+  // Content of the run and its embeddings. Compared on lookup so a hash
+  // collision can't silently return another string's shaping. For vertical
+  // text `embedding` holds the per-char vertical run class instead of the
+  // bidi embedding level
+  std::vector<uint32_t> string;
+  std::vector<int> embedding;
 
-  inline ShapeID() : string_hash(0), embed_hash(0), font(""), index(0), size(0.0), tracking(0.0) {}
-  inline ShapeID(const ShapeID& shape) :
-    string_hash(shape.string_hash),
-    embed_hash(shape.embed_hash),
-    font(shape.font),
-    index(shape.index),
-    size(shape.size),
-    tracking(shape.tracking) {}
+  inline ShapeID() : string_hash(0), embed_hash(0), font(""), index(0), size(0.0), font_size(0.0), tracking(0.0), direction(0), mixed(0), string(), embedding() {}
 
   inline bool operator==(const ShapeID &other) const {
     return string_hash == other.string_hash &&
            embed_hash == other.embed_hash &&
            index == other.index &&
            size == other.size &&
+           font_size == other.font_size &&
            font == other.font &&
-           tracking == other.tracking;
+           tracking == other.tracking &&
+           direction == other.direction &&
+           mixed == other.mixed &&
+           string == other.string &&
+           embedding == other.embedding;
   }
 };
 
 struct BidiID {
   size_t string_hash;
   int direction;
+  // Content of the string, to guard against hash collisions
+  std::vector<uint32_t> string;
 
   inline bool operator==(const BidiID &other) const {
-    return string_hash == other.string_hash && direction == other.direction;
+    return string_hash == other.string_hash && direction == other.direction && string == other.string;
   }
 };
 
@@ -83,18 +96,28 @@ struct EmbedInfo {
   std::vector<int32_t> y_bear;
   std::vector<int32_t> width;
   std::vector<int32_t> height;
+  // Horizontal advance of the glyph (em box width), used by the ttb-ltr
+  // mirror to keep each glyph's designed placement within its em box
+  std::vector<int32_t> em_width;
   std::vector<int32_t> ascenders;
   std::vector<int32_t> descenders;
+  // Rotation in degrees the renderer should apply to the glyph (e.g. -90 for
+  // horizontal-script runs rotated into vertical text). 0 for upright glyphs
+  std::vector<double> rotation;
   std::vector<bool> is_blank;
   std::vector<bool> may_break;
   std::vector<bool> may_stretch;
+  // Per-glyph main-axis spacing adjustment (in 1/64 pt) applied to the gap
+  // before the glyph, written at break time by the kinsoku spacing logic
+  // (push-out expansion / push-in compression). All zero for normal shaping
+  std::vector<int32_t> space_adjust;
   std::vector<unsigned int> font;
-  std::vector<FontSettings> fallbacks;
+  std::vector<FontSettings2> fallbacks;
   std::vector<double> fallback_size;
   std::vector<double> fallback_scaling;
-  size_t embedding_level;
-  int32_t full_width;
-  bool terminates_paragraph;
+  size_t embedding_level = 0;
+  int32_t full_width = 0;
+  bool terminates_paragraph = false;
   void add(const EmbedInfo& other, bool check = true) {
     if (check && embedding_level != other.embedding_level) {
       cpp11::stop("Unable to merge embeddings of different levels");
@@ -113,11 +136,14 @@ struct EmbedInfo {
     y_bear.insert(y_bear.end(), other.y_bear.begin(), other.y_bear.end());
     width.insert(width.end(), other.width.begin(), other.width.end());
     height.insert(height.end(), other.height.begin(), other.height.end());
+    em_width.insert(em_width.end(), other.em_width.begin(), other.em_width.end());
     ascenders.insert(ascenders.end(), other.ascenders.begin(), other.ascenders.end());
     descenders.insert(descenders.end(), other.descenders.begin(), other.descenders.end());
+    rotation.insert(rotation.end(), other.rotation.begin(), other.rotation.end());
     is_blank.insert(is_blank.end(), other.is_blank.begin(), other.is_blank.end());
     may_break.insert(may_break.end(), other.may_break.begin(), other.may_break.end());
     may_stretch.insert(may_stretch.end(), other.may_stretch.begin(), other.may_stretch.end());
+    space_adjust.insert(space_adjust.end(), other.space_adjust.begin(), other.space_adjust.end());
     size_t current_font_size = font.size();
     font.insert(font.end(), other.font.begin(), other.font.end());
     std::for_each(font.begin() + current_font_size, font.end(), [this](unsigned int& f) { f+=this->fallbacks.size();});
@@ -153,16 +179,22 @@ struct EmbedInfo {
     width.erase(width.begin() + from, width.begin() + to);
     into.height.insert(into.height.end(), height.begin() + from, height.begin() + to);
     height.erase(height.begin() + from, height.begin() + to);
+    into.em_width.insert(into.em_width.end(), em_width.begin() + from, em_width.begin() + to);
+    em_width.erase(em_width.begin() + from, em_width.begin() + to);
     into.ascenders.insert(into.ascenders.end(), ascenders.begin() + from, ascenders.begin() + to);
     ascenders.erase(ascenders.begin() + from, ascenders.begin() + to);
     into.descenders.insert(into.descenders.end(), descenders.begin() + from, descenders.begin() + to);
     descenders.erase(descenders.begin() + from, descenders.begin() + to);
+    into.rotation.insert(into.rotation.end(), rotation.begin() + from, rotation.begin() + to);
+    rotation.erase(rotation.begin() + from, rotation.begin() + to);
     into.is_blank.insert(into.is_blank.end(), is_blank.begin() + from, is_blank.begin() + to);
     is_blank.erase(is_blank.begin() + from, is_blank.begin() + to);
     into.may_break.insert(into.may_break.end(), may_break.begin() + from, may_break.begin() + to);
     may_break.erase(may_break.begin() + from, may_break.begin() + to);
     into.may_stretch.insert(into.may_stretch.end(), may_stretch.begin() + from, may_stretch.begin() + to);
     may_stretch.erase(may_stretch.begin() + from, may_stretch.begin() + to);
+    into.space_adjust.insert(into.space_adjust.end(), space_adjust.begin() + from, space_adjust.begin() + to);
+    space_adjust.erase(space_adjust.begin() + from, space_adjust.begin() + to);
     into.font.insert(into.font.end(), font.begin() + from, font.begin() + to);
     font.erase(font.begin() + from, font.begin() + to);
     into.fallbacks.insert(into.fallbacks.end(), fallbacks.begin(), fallbacks.end());
@@ -171,10 +203,10 @@ struct EmbedInfo {
     into.full_width = std::accumulate(into.x_advance.begin(), into.x_advance.end(), int32_t(0));
     full_width -= into.full_width;
   }
-  uint32_t pop() {
-    uint32_t cluster;
+  int32_t pop() {
+    int32_t glyph_height;
     if (embedding_level % 2 == 0) {
-      cluster = glyph_cluster.back();
+      glyph_height = ascenders.back() - descenders.back();
       glyph_id.pop_back();
       glyph_cluster.pop_back();
       string_id.pop_back();
@@ -186,15 +218,18 @@ struct EmbedInfo {
       y_bear.pop_back();
       width.pop_back();
       height.pop_back();
+      em_width.pop_back();
       ascenders.pop_back();
       descenders.pop_back();
+      rotation.pop_back();
       is_blank.pop_back();
       may_break.pop_back();
       may_stretch.pop_back();
+      space_adjust.pop_back();
       font.pop_back();
     } else {
       // This is not efficient but we would generally only do this on small embeddings
-      cluster = glyph_cluster.front();
+      glyph_height = ascenders.front() - descenders.front();
       glyph_id.erase(glyph_id.begin());
       glyph_cluster.erase(glyph_cluster.begin());
       string_id.erase(string_id.begin());
@@ -206,28 +241,33 @@ struct EmbedInfo {
       y_bear.erase(y_bear.begin());
       width.erase(width.begin());
       height.erase(height.begin());
+      em_width.erase(em_width.begin());
       ascenders.erase(ascenders.begin());
       descenders.erase(descenders.begin());
+      rotation.erase(rotation.begin());
       is_blank.erase(is_blank.begin());
       may_break.erase(may_break.begin());
       may_stretch.erase(may_stretch.begin());
+      space_adjust.erase(space_adjust.begin());
       font.erase(font.begin());
     }
-    return cluster;
+    return glyph_height;
   }
 };
 struct ShapeInfo {
   size_t run_start;
   size_t run_end;
-  FontSettings font_info;
+  FontSettings2 font_info;
   unsigned int index;
   double size;
   double res;
   double tracking;
   std::vector<EmbedInfo> embeddings;
+  // Mixed-run mode of this string (0=rotate, 1=upright, 2=tate, 3=combine, 4=sideways)
+  int mixed;
 
-  inline ShapeInfo() : run_start(0), run_end(0), font_info(), index(0), size(0), res(0), tracking(0), embeddings({}) {}
-  inline ShapeInfo(size_t _run_start, size_t _run_end, FontSettings& _font_info, unsigned int _index, double _size, double _res, double _tracking) :
+  inline ShapeInfo() : run_start(0), run_end(0), font_info(), index(0), size(0), res(0), tracking(0), embeddings({}), mixed(0) {}
+  inline ShapeInfo(size_t _run_start, size_t _run_end, FontSettings2& _font_info, unsigned int _index, double _size, double _res, double _tracking, int _mixed) :
     run_start(_run_start),
     run_end(_run_end),
     font_info(_font_info),
@@ -235,7 +275,8 @@ struct ShapeInfo {
     size(_size),
     res(_res),
     tracking(_tracking),
-    embeddings({}) {}
+    embeddings({}),
+    mixed(_mixed) {}
 
   void add_index(unsigned int ind) {
     index = ind;
@@ -264,19 +305,25 @@ namespace std {
 template <>
 struct hash<ShapeID> {
   size_t operator()(const ShapeID & x) const {
-    return x.string_hash ^
-      x.embed_hash ^
-      std::hash<std::string>()(x.font) ^
-      std::hash<unsigned int>()(x.index) ^
-      std::hash<double>()(x.size) ^
-      std::hash<double>()(x.tracking);
+    size_t h = x.string_hash;
+    h ^= x.embed_hash + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<std::string>()(x.font) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<unsigned int>()(x.index) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<double>()(x.size) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<double>()(x.font_size) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<double>()(x.tracking) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<int>()(x.direction) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    h ^= std::hash<int>()(x.mixed) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    return h;
   }
 };
 
 template <>
 struct hash<BidiID> {
   size_t operator()(const BidiID & x) const {
-    return x.string_hash ^ std::hash<int>()(x.direction);
+    size_t h = x.string_hash;
+    h ^= std::hash<int>()(x.direction) + 0x9e3779b9 + (h << 6) + (h >> 2);
+    return h;
   }
 };
 }
@@ -296,6 +343,7 @@ public:
   advance(),
   ascender(),
   descender(),
+  rotation(),
   line_must_break(),
   width(0),
   height(0),
@@ -312,6 +360,9 @@ public:
   // Private
   full_string(),
   bidi_embedding(),
+  vert_class(),
+  vertical_allowed(false),
+  cur_mixed(0),
   soft_break(),
   hard_break(),
   cur_lineheight(0.0),
@@ -342,6 +393,10 @@ public:
     hb_buffer_destroy(buffer);
   };
 
+  // Owns a raw hb_buffer_t; copying would double-free
+  HarfBuzzShaper(const HarfBuzzShaper&) = delete;
+  HarfBuzzShaper& operator=(const HarfBuzzShaper&) = delete;
+
   std::vector<unsigned int> glyph_id;
   std::vector<unsigned int> glyph_cluster;
   std::vector<std::string> fontfile;
@@ -350,9 +405,18 @@ public:
   std::vector<unsigned int> string_id;
   std::vector<int32_t> x_pos;
   std::vector<int32_t> y_pos;
+  // Per-glyph cell (advance slot x em box) bounds in real coordinates
+  std::vector<int32_t> cell_x0;
+  std::vector<int32_t> cell_y0;
+  std::vector<int32_t> cell_x1;
+  std::vector<int32_t> cell_y1;
   std::vector<int32_t> advance;
   std::vector<int32_t> ascender;
   std::vector<int32_t> descender;
+  std::vector<double> rotation;
+  // Per-glyph em box width, only needed for the ttb-ltr mirror in
+  // finish_string where glyph origins are corrected for the cross-axis flip
+  std::vector<int32_t> em_width;
   std::vector<bool> line_must_break;
   int32_t width;
   int32_t height;
@@ -368,24 +432,56 @@ public:
   int error_code;
   int dir;
 
-  bool shape_string(const char* string, FontSettings& font_info,
+  bool shape_string(const char* string, FontSettings2& font_info,
                     double size, double res, double lineheight,
                     int align, double hjust, double vjust, double width,
                     double tracking, double ind, double hang, double before,
-                    double after, bool spacer, int direction,
-                    std::vector<int>& soft_wrap, std::vector<int>& hard_wrap);
-  bool add_string(const char* string, FontSettings& font_info,
+                    double after, bool spacer, int direction, int mixed,
+                    int kinsoku, int kinsoku_style, std::vector<int>& wrap);
+  bool add_string(const char* string, FontSettings2& font_info,
                   double size, double tracking, bool spacer,
-                  std::vector<int>& soft_wrap, std::vector<int>& hard_wrap);
-  bool add_spacer(FontSettings& font_info, double height, double width, uint32_t filler = SPACER_CHAR);
+                  std::vector<int>& wrap, int mixed);
+  bool add_spacer(FontSettings2& font_info, double height, double width, uint32_t filler = SPACER_CHAR);
   bool finish_string();
 
   void shape_text_run(ShapeInfo &text_run, bool ltr);
-  EmbedInfo shape_single_line(const char* string, FontSettings& font_info, double size, double res);
+  // direction: 0 = auto, 1 = ltr, 2 = rtl, 3 = ttb, 4 = ttb-ltr (top-to-bottom
+  // with columns progressing left-to-right, e.g. Mongolian)
+  // mixed: 0 = rotate, 1 = upright (only used for vertical directions)
+  // allow_vertical: whether auto-detection may resolve to a vertical
+  // direction. Always false for the graphics-device C API, which must stay
+  // strictly horizontal
+  EmbedInfo shape_single_line(const char* string, FontSettings2& font_info, double size, double res,
+                              int direction = 0, int mixed = 0, bool allow_vertical = false);
 
 private:
   std::vector<uint32_t> full_string;
   std::vector<int> bidi_embedding;
+  // Paragraph-sized vertical run classification, used when the resolved
+  // direction is vertical (dir 3/4). Empty for horizontal text.
+  // 0 = shape vertically, 1 = horizontal-only script run (UAX#50 R),
+  // 2 = tate-chu-yoko combined run, 3 = UAX#50 Tr (vert glyph or rotated)
+  std::vector<uint8_t> vert_class;
+  // Whether auto direction detection may resolve to a vertical direction
+  // (required-vertical scripts such as Mongolian). False on the
+  // graphics-device C API path so devices always get horizontal layout
+  bool vertical_allowed;
+  // Mixed-script handling for vertical text: 0 = rotate, 1 = upright
+  int cur_mixed;
+  // Kinsoku shori (JLREQ line-break prohibition handling):
+  // kinsoku_mode: 0 = strict, 1 = loose (small kana, ー, iteration marks may
+  // start a line), 2 = none (kinsoku processing disabled; JLREQ spacing
+  // collapses are unaffected)
+  // kinsoku_style: 0 = hang (ぶら下げ), 1 = push-out (追い出し), 2 = push-in
+  // (追い込み)
+  int kinsoku_mode = 0;
+  int kinsoku_style = 0;
+  // Paragraph-sized flag marking characters with special emoji handling
+  // (embedding level alone can't encode this since negating level 0 is a
+  // no-op). 0 = regular character, 1 = must be shaped with the emoji font,
+  // 2 = text-presentation-default emoji not covered by the main font; shaped
+  // with regular fallback fonts and the emoji font only as a last resort
+  std::vector<uint8_t> emoji_flag;
   static UTF_UCS utf_converter;
   static LRU_Cache<BidiID, std::vector<int> > bidi_cache;
   static LRU_Cache<ShapeID, ShapeInfo> shape_cache;
@@ -418,11 +514,11 @@ private:
   void reset();
   std::list<EmbedInfo> combine_embeddings(std::vector<ShapeInfo>& shapes, int& direction);
   bool shape_embedding(unsigned int start, unsigned int end, std::vector<hb_feature_t>& features,
-                       int dir, ShapeInfo& shape_info, std::vector<FontSettings>& fallbacks,
+                       int dir, int emoji, ShapeInfo& shape_info, std::vector<FontSettings2>& fallbacks,
                        std::vector<double>& fallback_sizes, std::vector<double>& fallback_scales);
   hb_font_t* load_fallback(unsigned int font, unsigned int start, unsigned int end,
                            bool& new_added, ShapeInfo& shape_info,
-                           std::vector<FontSettings>& fallbacks,
+                           std::vector<FontSettings2>& fallbacks,
                            std::vector<double>& fallback_sizes,
                            std::vector<double>& fallback_scales);
   bool fallback_cluster(unsigned int font, std::vector<unsigned int>& char_font,
@@ -436,16 +532,35 @@ private:
                        unsigned int n_glyphs, hb_font_t* font, unsigned int font_id,
                        unsigned int cluster_offset, ShapeInfo& shape_info,
                        std::vector<double>& fallback_sizes,
-                       std::vector<double>& fallback_scales);
+                       std::vector<double>& fallback_scales,
+                       std::vector<FontSettings2>& fallbacks,
+                       hb_direction_t hb_dir, double rotation, double run_middle,
+                       bool tate);
   void fill_glyph_info(EmbedInfo& embedding);
-  FT_Face get_font_sizing(FontSettings& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales, bool deref = false);
+  FT_Face get_font_sizing(FontSettings2& font_info, double size, double res, std::vector<double>& sizes, std::vector<double>& scales, bool deref = false);
   void insert_hyphen(EmbedInfo& embedding, size_t where);
-  bool has_valid_break(const EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force);
+  // desperate: last-resort break disregarding kinsoku prohibitions, used
+  // when no embedding on the line offers an acceptable break. Non-const: the
+  // kinsoku spacing styles (push-out/push-in) write per-glyph space_adjust
+  bool has_valid_break(EmbedInfo& embedding, int32_t width, size_t& break_pos, bool force, bool desperate);
+  // Classify the gap before glyph j of the embedding for spacing adjustment:
+  // 0 = not adjustable, 1 = punctuation blank (used first), 2 = inter-
+  // character gap between solid CJK characters. Returns the compression cap
+  // in `cap` (the full blank for blanks, 1/4 em for inter-character gaps)
+  int gap_adjust_class(const EmbedInfo& embedding, size_t j, int32_t& cap);
+  // Total compression available in the gaps before glyphs lo+1..hi
+  int32_t spacing_capacity(const EmbedInfo& embedding, size_t lo, size_t hi);
+  // Distribute `amount` of spacing (1/64 pt; negative compresses) over the
+  // gaps before glyphs lo+1..hi of the embedding, punctuation blanks first,
+  // then inter-character gaps. Returns the amount that could not be
+  // distributed
+  int32_t distribute_spacing(EmbedInfo& embedding, size_t lo, size_t hi, int32_t amount);
   void rearrange_embeddings(std::list<EmbedInfo>& line);
-  std::list<EmbedInfo> get_next_line_at_width(int32_t width, std::list<EmbedInfo>& all_embeddings, bool& hard_break, uint32_t& break_char);
+  std::list<EmbedInfo> get_next_line_at_width(int32_t width, std::list<EmbedInfo>& all_embeddings, bool& hard_break, int32_t& break_height);
   void do_alignment(bool ltr);
 
   inline double family_scaling(const char* family) {
+    if (family == nullptr) return 1.0;
     if (strcmp("Apple Color Emoji", family) == 0) {
       return 1.3;
     } else if (strcmp("Noto Color Emoji", family) == 0) {

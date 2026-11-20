@@ -12,6 +12,7 @@ shape_text(
   weight = "normal",
   width = "undefined",
   features = font_feature(),
+  variation = font_variation(),
   size = 12,
   res = 72,
   lineheight = 1,
@@ -25,6 +26,9 @@ shape_text(
   space_before = 0,
   space_after = 0,
   direction = "auto",
+  mixed = "rotate",
+  kinsoku = "strict",
+  kinsoku_style = "hang",
   path = NULL,
   index = 0,
   bold = deprecated()
@@ -55,6 +59,11 @@ shaping will continue between strings}
 \item{features}{A \code{\link[systemfonts:font_feature]{systemfonts::font_feature()}} object or a list of them,
 giving the OpenType font features to set}
 
+\item{variation}{A \code{\link[systemfonts:font_variation]{systemfonts::font_variation()}} object or a list of them,
+giving the coordinates on the variable font axes to shape with. Settings in
+\code{variation} take precedence over the corresponding \code{italic}, \code{weight}, and
+\code{width} arguments during shaping.}
+
 \item{size}{The size in points to use for the font}
 
 \item{res}{The resolution to use when doing the shaping. Should optimally
@@ -84,9 +93,57 @@ inches.}
 measured in points}
 
 \item{direction}{The overall directional flow of the text. The default
-(\code{"auto"}) will guess the direction based on the content of the string. Use
-\code{"ltr"} (left-to-right) and \code{"rtl"} (right-to-left) to turn detection of and
-set it manually.}
+(\code{"auto"}) will guess the direction based on the content of the string,
+resolving to top-to-bottom if the string contains scripts that can only be
+typeset vertically (e.g. Mongolian) and to left-to-right or right-to-left
+otherwise. Use \code{"ltr"} (left-to-right), \code{"rtl"} (right-to-left), \code{"ttb"}
+(top-to-bottom, lines stacking right-to-left as in Japanese), and
+\code{"ttb-ltr"} (top-to-bottom, lines stacking left-to-right as in Mongolian)
+to turn off detection and set
+it manually. Scripts that can be typeset both horizontally and vertically
+(e.g. Japanese) are always set horizontally with \code{"auto"}.}
+
+\item{mixed}{How to treat runs of horizontal-only scripts (e.g. Latin) in
+vertical text: \code{"rotate"} shapes them horizontally and marks them for a 90
+degree rotation during rendering (see the \code{rotation} column in the output);
+\code{"upright"} sets them upright in the vertical line using the font's \code{vert}/
+\code{vrt2} substitutions, falling back to \code{"rotate"} behaviour if the font
+doesn't provide these; \code{"tate"} additionally sets ASCII digit runs of up
+to 4 digits horizontally on a single line (tate-chu-yoko), as is common
+for e.g. years and day numbers in Japanese typesetting. Tate runs use the
+font's \code{hwid}/\code{twid}/\code{qwid} narrow digit forms when available (unless the
+features are set explicitly), falling back to scaling down to fit the em
+box. \code{"combine"} generalises tate-chu-yoko to any horizontal-only run of
+up to 4 characters — Latin abbreviations, era names, etc. — equivalent to
+CSS \code{text-combine-upright: all} (narrow digit features are only used for
+all-digit runs). \code{"tate2"}/\code{"tate3"} and \code{"combine2"}/\code{"combine3"} are
+like \code{"tate"} and \code{"combine"} but cap the combined run at 2 or 3
+digits/characters instead of 4 (runs longer than the cap stay rotated).
+Finally, \code{"sideways"} shapes the entire string
+horizontally — CJK scripts included — and marks it for rotation,
+equivalent to CSS \code{text-orientation: sideways}. Ignored for horizontal
+text. Can be given per string.}
+
+\item{kinsoku}{How to handle CJK line-break prohibitions (kinsoku shori)
+when wrapping is forced past the last valid break opportunity: \code{"strict"}
+(the default) prohibits lines from starting with closing brackets, sentence
+punctuation, small kana, the prolonged sound mark, and iteration marks, and
+from ending with opening brackets; \code{"loose"} (like CSS \code{line-break: loose})
+additionally permits lines to start with small kana, the prolonged sound
+mark, iteration marks, and centred punctuation \ifelse{latex}{}{(・：；)};
+\code{"none"} disables
+kinsoku processing entirely (the JLREQ spacing collapses of fullwidth
+punctuation blanks are unaffected). Can be given per string.}
+
+\item{kinsoku_style}{How line-break prohibition violations are resolved
+when wrapping is forced: \code{"hang"} \ifelse{latex}{}{(ぶら下げ, }the
+default\ifelse{latex}{}{)} lets offending
+punctuation hang past the line end; \code{"push-out"} \ifelse{latex}{}{(追い出し) }
+moves it to the
+next line and expands the spacing of the vacated line; \code{"push-in"}
+\ifelse{latex}{}{(追い込み) }pulls it onto the current line by compressing its spacing
+(punctuation blanks first, then inter-character gaps), falling back to
+hanging when the line cannot absorb the overflow. Can be given per string.}
 
 \item{path, index}{path an index of a font file to circumvent lookup based on
 family and style}
@@ -112,7 +169,49 @@ about the full strings.
 \item{advance}{The advancement amount to the next glyph}
 \item{ascender}{The ascend of the font used for the glyph. This does not measure the actual glyph}
 \item{descender}{The descend of the font used for the glyph. This does not measure the actual glyph}
+\item{rotation}{The rotation in degrees the renderer should apply to the glyph. Non-zero for rotated runs in vertical text: horizontal-only scripts with \code{mixed = "rotate"} (the default), UAX#50 Tr characters when the font lacks \code{vert}/\code{vrt2}, and everything with \code{mixed = "sideways"}; \code{0} otherwise}
+\item{spacer}{Logical. \code{TRUE} for null glyphs created from \code{NA} strings, which reserve advance (given by \code{tracking}) without shaping any characters. \code{FALSE} for all real glyphs}
+\item{cell_x0, cell_y0, cell_x1, cell_y1}{The bounds of the glyph's cell, i.e. its advance slot along the main axis and its em box along the cross axis, in pixels relative to the origin of the textbox (see below for the precise anchoring convention). Cells tile seamlessly: within a run of text the end of one cell coincides with the start of the next, so they can be used directly for backgrounds and other per-cell decorations}
 }
+\subsection{Cell anchoring convention}{
+
+The cell is the glyph's advance slot along the main axis and its em box
+along the cross axis. Deriving it from \code{x_offset}/\code{y_offset} requires
+knowing the anchoring convention, which differs by direction and rotation,
+so prefer the \verb{cell_*} columns. For reference: for horizontal text the
+cell spans \verb{[x_offset, x_offset + advance]} along the line and
+\verb{[y_offset + descender, y_offset + ascender]} across it. For vertical
+text, upright glyphs (and spacers) occupy the advance slot along the
+column and \verb{[x_offset, x_offset + em]} across it — the slot is \emph{not}
+recoverable from \code{y_offset}, which is the font's VORG origin and may sit
+anywhere inside the slot. Rotated runs sit on their baseline: \code{-90} runs
+(in \code{"ttb"}) span \verb{[y_offset - advance, y_offset]} along the column and
+\verb{[x_offset + descender, x_offset + ascender]} across it, while \code{+90} runs
+(only in \code{"ttb-ltr"}) span \verb{[y_offset, y_offset + advance]} (exact only
+when \code{tracking} is 0 for the run) and \verb{[x_offset - ascender, x_offset - descender]}.
+Note that the cross-axis em width is generally not \code{ascender - descender};
+use \code{cell_x0}/\code{cell_x1} rather than deriving it from the font extents.
+}
+
+\subsection{Block anchoring}{
+
+The whole shaped block is anchored the same way in every direction: the
+origin sits at the \code{hjust}/\code{vjust} anchor point of the content box, with
+\code{hjust} justifying along the main axis and \code{vjust} across it. Concretely,
+\code{left_border} is \code{-vjust * width} for vertical text (\code{-hjust * width} for
+horizontal) and \code{top_border} marks the block-start edge by \code{hjust}. With
+the default \code{hjust = vjust = 0} the content box thus always starts at the
+origin — its left edge at \code{x = 0} and its block-start edge at \code{y = 0} —
+whether the text is horizontal, \code{"ttb"}, or \code{"ttb-ltr"}; the direction only
+affects the order in which lines or columns fill the box. Ink may extend
+past the box edges; the bearings report how far.
+
+Null glyphs (\code{spacer == TRUE}) have no glyph to report so \code{index} is \code{NA},
+but they carry the font their span resolved to (\code{font_path}, \code{font_index},
+\code{font_size}, \code{ascender}, and \code{descender}) so consumers can compute
+font-relative metrics such as underline position for the reserved space. The
+resolved font may legitimately differ from that of neighbouring glyphs when
+the \code{NA} span specifies a different family.
 
 \code{metrics} is a data.frame with the following columns:
 \describe{
@@ -127,7 +226,17 @@ about the full strings.
 \item{top_border}{The position of the topmost edge of the textbox related to the origin}
 \item{pen_x}{The horizontal position of the next glyph after the string}
 \item{pen_y}{The vertical position of the next glyph after the string}
-\item{ltr}{The global direction of the string. If \code{TRUE} then it is left-to-right, otherwise it is right-to-left}
+\item{ltr}{The global direction of the string. If \code{TRUE} then it is left-to-right, otherwise it is right-to-left. Vertical text is not right-to-left so \code{ltr} is always \code{TRUE} for it; consult \code{direction} for the resolved direction}
+\item{direction}{The resolved global direction of the string (\code{"ltr"}, \code{"rtl"}, \code{"ttb"}, or \code{"ttb-ltr"})}
+}
+
+For vertical text (\code{"ttb"}/\code{"ttb-ltr"}) glyphs flow along the y axis and lines
+stack as columns (right-to-left for \code{"ttb"}, left-to-right for \code{"ttb-ltr"}).
+Upright runs automatically use the font's \code{vert}/\code{vrt2} and \code{vkna}
+substitutions when available unless these features are set explicitly.
+\code{max_width} constrains the height of a column, and \code{hjust}/\code{vjust} justify
+along the main axis and across columns respectively. The \code{advance} column
+gives the advance along the main axis.
 }
 }
 \description{
@@ -149,5 +258,19 @@ string <- c(
 )
 
 shape_text(string, id = c(1, 1, 1), size = c(12, 24, 12))
+
+# Vertical text. CJK scripts stay horizontal with "auto", so request it
+# explicitly; runs of horizontal-only scripts are rotated by default
+# (Japanese strings written with Unicode escapes so they render in the
+# PDF manual)
+shape_text("\\\\u65e5\\\\u672c\\\\u8a9eABC\\\\u3067\\\\u3059", direction = "ttb")
+
+# ...or set them upright if the font provides vert/vrt2 substitutions
+shape_text("\\\\u65e5\\\\u672c\\\\u8a9eABC\\\\u3067\\\\u3059", direction = "ttb", mixed = "upright")
+
+# Digit runs of up to 4 digits can be set horizontally on a single line
+# (tate-chu-yoko) with mixed = "tate", using the font's narrow digit
+# forms (hwid/twid/qwid) when available
+shape_text("2024\\\\u5e7412\\\\u670825\\\\u65e5\\\\u767a\\\\u58f2", direction = "ttb", mixed = "tate")
 
 }
